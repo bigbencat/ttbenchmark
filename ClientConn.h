@@ -34,9 +34,12 @@ public:
 	virtual void SendMessage(const char* szDestID,const char* szMsg);
 	virtual void SendResultMsg();
 	virtual void HandlePdu(CImPdu* pPdu);
+	static void StartAll();
 	
 	//是否由此client发送最终信息结果
 	bool m_bSendResultClient;
+	//开始测试
+	bool m_bStartTest;
 private:
 	void _HandleKickUser(CImPduKickUser* pPdu);
 	void _HandleMessage(CImPduClientMsgData* pPdu);
@@ -52,7 +55,11 @@ private:
 	uint64_t  m_last_send_result_time;
 	//msg seq
 	uint32_t  m_msg_seq;
+	//随机发送间隔
+	uint32_t m_nSendMsgInterval;
 	char m_szWhoAmI[64];
+	
+	
 };
 
 void init_msg_serv_conn(msg_serv_info_t* server_list, uint32_t server_count);

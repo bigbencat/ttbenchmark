@@ -11,7 +11,7 @@
 #include "util.h"
 #include "imconn.h"
 #include "ConfigFileReader.h"
-
+#include <algorithm>
 
 #define MAX_RECONNECT_CNT	64
 #define MIN_RECONNECT_CNT	4
@@ -29,6 +29,7 @@ typedef struct msg_serv_info{
 	uint32_t  nUserIDStart;
 	uint32_t  nReceiveResultID;
 	uint32_t  nSendMsgInterval;
+	uint32_t  nStartedClient;//启动的客户端，目的是分批启动
 	//CImConn*	serv_conn;
 	//
 } msg_serv_info_t;
@@ -48,10 +49,21 @@ void msg_serv_init(msg_serv_info_t* server_list, uint32_t server_count)
 	for (uint32_t i = 0; i < server_count; i++) {
 		server_list[i].idle_cnt = 0;
 		server_list[i].reconnect_cnt = MIN_RECONNECT_CNT / 2;
-			
-		for(uint32_t nUser=0;nUser<server_list[i].num_connection;nUser++)
+		
+		uint32_t nStart = server_list[i].nStartedClient;
+		uint32_t nEnd   = min(server_list[i].num_connection,nStart+1000); 
+		if(nStart >= nEnd)
+		{//m_bStartTest
+			T::StartAll();
+			continue;
+		}
+		printf("start client connection: [%d to %d) \n",nStart,nEnd);
+		for(uint32_t nUser=nStart;nUser<nEnd;nUser++)
 		{
+			
+			//printf("-------------start client connection: %d  \n",nUser);
 			T::CreateClient(&server_list[i],nUser);
+			server_list[i].nStartedClient++;
 			/*T* pConn = new T();
 			
 			
@@ -64,8 +76,6 @@ void msg_serv_init(msg_serv_info_t* server_list, uint32_t server_count)
 		
 			pConn->Connect(server_list[i].server_ip.c_str(), server_list[i].server_port, i);
 			*/
-			
-
 		}
 	}
 }

@@ -11,13 +11,18 @@
 static ConnMap_t g_msg_server_conn_map;
 //static ConnMap_t g_msg_conn_map;
 
-static msg_serv_info_t* g_msg_server_list;
+//static msg_serv_info_t* g_msg_server_list;
+//static uint32_t g_msg_server_count;
 
-static uint32_t g_msg_server_count;
+
+extern uint32_t 					g_msg_server_count ;
+extern msg_serv_info_t* 	g_msg_server_list;
+
 
 void msg_server_conn_timer_callback(void* callback_data, uint8_t msg, uint32_t handle, void* pParam)
 {
 	
+	init_msg_serv_conn(g_msg_server_list, g_msg_server_count);
 	//printf("timer......................\n");
 	ConnMap_t::iterator it_old;
 	CClientConn* pConn = NULL;
@@ -41,7 +46,7 @@ void init_msg_serv_conn(msg_serv_info_t* server_list, uint32_t server_count)
 
 	msg_serv_init<CClientConn>(g_msg_server_list, g_msg_server_count);
 
-	netlib_register_timer(msg_server_conn_timer_callback, NULL, 1000);
+	netlib_register_timer(msg_server_conn_timer_callback, NULL, 10000);
 
 }
 
@@ -52,12 +57,14 @@ static uint64_t g_msg_server_start_time=0;
 
 CClientConn::CClientConn()
 {
+	m_bStartTest = false;
 	m_bOpen = false;
 	m_bSendResultClient = false;
 	m_last_send_result_time =0;
 	m_serv_idx = 0;
 	m_msg_seq = rand() % 10000;
 	m_szWhoAmI[0]=0x0;
+	m_nSendMsgInterval =0;
 	if(g_msg_server_start_time ==0)
 		g_msg_server_start_time =get_tick_count();
 }
@@ -198,6 +205,21 @@ void CClientConn::SendMessage(const char* szDestID,const char* szMsg)
 		g_msg_sended_count++;
 
 }
+
+void CClientConn::StartAll()
+{
+	
+	ConnMap_t::iterator it_old;
+	CClientConn* pConn = NULL;
+	for (ConnMap_t::iterator it = g_msg_server_conn_map.begin(); it != g_msg_server_conn_map.end(); ) {
+        it_old = it;
+        it++;
+        pConn = (CClientConn*)it_old->second;
+        pConn->m_bStartTest = true;
+	}
+	
+}
+
 //发送benchmark 结果
 void CClientConn::SendResultMsg()
 {
@@ -257,25 +279,29 @@ void CClientConn::OnTimer(uint64_t curr_tick)
 		Close();
 	}
 	
+	if(!m_bStartTest) 
+		return;//统一开始测试
+	
 	if((m_bSendResultClient) && (curr_tick > m_last_send_result_time + 30000)) {
 		m_last_send_result_time = curr_tick;
 		SendResultMsg();//发送benchmark 结果
 	}
 	
-	
+	if(m_nSendMsgInterval ==0)
+	{
+			m_nSendMsgInterval = (uint32_t)m_serv_info.nSendMsgInterval * ((rand() % 1000)/1000.0f);
+	}
 	
 	//#define SEND_MSG_TIME 10000  //10s   nSendMsgInterval
-	if (curr_tick > m_last_send_msg_time + m_serv_info.nSendMsgInterval) {
-		if(( rand() % 100)>90){//到时间后 1/10的概率要发送消息。每秒测试一次
-			uint32_t uDestUser = rand() % m_serv_info.num_connection;
-			if(uDestUser != m_serv_info.nCurrentUserID)//不给我自己发啦
-			{
-				m_last_send_msg_time = curr_tick;
-				char szDestID[64];
-				sprintf(szDestID,"%d",m_serv_info.nUserIDStart+uDestUser);
-				SendMessage(szDestID,"haha 1234567890");
-				
-			}
+	if (curr_tick > m_last_send_msg_time + m_nSendMsgInterval) {
+		uint32_t uDestUser = rand() % m_serv_info.num_connection;
+		if(uDestUser != m_serv_info.nCurrentUserID)//不给我自己发啦
+		{
+			m_last_send_msg_time = curr_tick;
+			char szDestID[64];
+			sprintf(szDestID,"%d",m_serv_info.nUserIDStart+uDestUser);
+			SendMessage(szDestID,"haha 1234567890");
+			m_nSendMsgInterval =0;
 		}
 	}
 	
